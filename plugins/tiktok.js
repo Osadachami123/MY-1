@@ -1,32 +1,39 @@
-import axios from 'axios'
+import { exec } from 'child_process'
 import fs from 'fs'
 
-export default async function tiktok({ sock, from, args }) {
-    if (!args[0]) {
-        return sock.sendMessage(from, { text: '❌ Please provide a TikTok video link!' })
-    }
+cmd({
+    pattern: "tiktok",
+    desc: "Download Tiktok video",
+    category: "download",
+    filename: __filename
+},
 
+export default async function tiktok({ sock, from, args }) {
+    if (!args[0]) return sock.sendMessage(from, { text: '❌ Please provide a TikTok video link!' })
     const url = args[0]
+    const fileName = `tiktok-${Date.now()}.mp4`
 
     try {
-        // TikTok download API (free one)
-        const apiUrl = `https://api.tikmate.app/api/lookup?url=${encodeURIComponent(url)}`
-        const res = await axios.get(apiUrl)
-        const videoUrl = res.data.video.url
+        exec(`yt-dlp -o "${fileName}" ${url}`, async (error, stdout, stderr) => {
+            if (error) {
+                console.error(`yt-dlp error: ${error.message}`)
+                return sock.sendMessage(from, { text: '⚠️ Failed to download TikTok video.' })
+            }
 
-        const videoRes = await axios.get(videoUrl, { responseType: 'arraybuffer' })
-        const fileName = `tiktok-${Date.now()}.mp4`
-        fs.writeFileSync(fileName, videoRes.data)
+            if (!fs.existsSync(fileName)) {
+                return sock.sendMessage(from, { text: '⚠️ File not found after download.' })
+            }
 
-        await sock.sendMessage(from, {
-            video: { url: fileName },
-            fileName: fileName,
-            mimetype: 'video/mp4'
+            await sock.sendMessage(from, {
+                video: { url: fileName },
+                fileName,
+                mimetype: 'video/mp4'
+            })
+
+            fs.unlinkSync(fileName)
         })
-
-        fs.unlinkSync(fileName)
     } catch (err) {
         console.error(err)
-        await sock.sendMessage(from, { text: '⚠️ Failed to download TikTok video.' })
+        await sock.sendMessage(from, { text: '⚠️ Something went wrong while downloading.' })
     }
-                                    }
+                        }
